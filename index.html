@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Cycle 0 — General m (Portal Arrows)</title>
+<style>
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f4f0;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-border-tertiary: rgba(0,0,0,0.15);
+  --color-border-secondary: rgba(0,0,0,0.3);
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1a1a1a;
+    --color-background-secondary: #2a2a2a;
+    --color-text-primary: #e8e8e8;
+    --color-text-secondary: #999999;
+    --color-border-tertiary: rgba(255,255,255,0.15);
+    --color-border-secondary: rgba(255,255,255,0.3);
+  }
+}
+* { box-sizing: border-box; margin: 0; }
+body { font-family: var(--font-sans); background: var(--color-background-primary); color: var(--color-text-primary); padding: 1rem; }
+.wrap{position:relative;width:100%;max-width:800px;height:480px;border-radius:var(--border-radius-lg);overflow:hidden;background:var(--color-background-secondary);touch-action:none;margin:0 auto}
+canvas{display:block;width:100%;height:100%}
+.ctrls{display:flex;align-items:center;gap:10px;margin:10px auto 0;max-width:800px;flex-wrap:wrap}
+.ctrls button, .ctrls select{padding:6px 14px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);cursor:pointer;font-size:13px}
+.ctrls button:hover, .ctrls select:hover{background:var(--color-background-secondary)}
+.ctrls button:active{transform:scale(0.98)}
+.ctrls select{min-width:55px}
+input[type=range]{accent-color:#378ADD}
+.rules{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:10px auto 0;max-width:800px}
+.rule{padding:7px 10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-tertiary);font-size:12px;line-height:1.4;color:var(--color-text-secondary);transition:all .2s}
+.rule .cond{font-family:var(--font-mono);font-size:11px}
+.rule .act{font-weight:500}
+.rule.a-s0{border-color:#534AB7;background:#EEEDFE;color:#3C3489}
+.rule.a-sm{border-color:#0F6E56;background:#E1F5EE;color:#085041}
+.rule.a-sl{border-color:#D85A30;background:#FAECE7;color:#712B13}
+@media(prefers-color-scheme:dark){
+.rule.a-s0{border-color:#AFA9EC;background:#3C3489;color:#EEEDFE}
+.rule.a-sm{border-color:#5DCAA5;background:#085041;color:#E1F5EE}
+.rule.a-sl{border-color:#F0997B;background:#712B13;color:#FAECE7}
+}
+.info{font-size:13px;color:var(--color-text-secondary);margin:8px auto 0;max-width:800px;line-height:1.6;display:flex;gap:16px;flex-wrap:wrap}
+.info .cur{font-family:var(--font-mono);font-weight:500;color:var(--color-text-primary)}
+.legend{display:flex;gap:14px;margin:8px auto 0;max-width:800px;font-size:12px;color:var(--color-text-secondary);flex-wrap:wrap}
+.legend .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle}
+.legend .line{width:16px;height:0;border-top:2px dashed;display:inline-block;margin-right:4px;vertical-align:middle}
+.warn{font-size:12px;color:#A32D2D;margin:6px auto 0;max-width:800px}
+@media(prefers-color-scheme:dark){.warn{color:#F09595}}
+.label3d{position:absolute;pointer-events:none;font-family:var(--font-mono);font-size:11px;color:var(--color-text-primary);background:var(--color-background-primary);padding:1px 4px;border-radius:3px;border:0.5px solid var(--color-border-tertiary);white-space:nowrap;transform:translate(-50%,-100%) translateY(-6px);opacity:0;transition:opacity .15s;z-index:10}
+.label3d.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap" id="container">
+  <div class="label3d" id="tooltip"></div>
+</div>
+<div class="ctrls">
+  <label style="font-size:13px;color:var(--color-text-secondary)">m =</label>
+  <select id="msel"></select>
+  <button id="stepbtn">Step</button>
+  <button id="runbtn">Auto-run</button>
+  <button id="resetbtn">Reset</button>
+  <label style="font-size:13px;color:var(--color-text-secondary)">Speed</label>
+  <input type="range" id="speed" min="1" max="10" value="5" style="width:80px" step="1">
+  <span style="font-size:13px;color:var(--color-text-secondary);margin-left:auto" id="stepcount">0 / 27</span>
+</div>
+<div class="rules">
+  <div class="rule" id="r0"><span class="cond">s=0, j=m−1</span> → <span class="act">bump i</span></div>
+  <div class="rule" id="r1"><span class="cond">s=0, j≠m−1</span> → <span class="act">bump k</span></div>
+  <div class="rule" id="r2"><span class="cond">0&lt;s&lt;m−1, i=m−1</span> → <span class="act">bump k</span></div>
+  <div class="rule" id="r3"><span class="cond">0&lt;s&lt;m−1, i≠m−1</span> → <span class="act">bump j</span></div>
+  <div class="rule" id="r4"><span class="cond">s=m−1, i&gt;0</span> → <span class="act">bump j</span></div>
+  <div class="rule" id="r5"><span class="cond">s=m−1, i=0</span> → <span class="act">bump k</span></div>
+</div>
+<div class="info">
+  <div>Vertex: <span class="cur" id="curv">000</span></div>
+  <div>s = <span class="cur" id="curs">0</span></div>
+  <div>Next: <span class="cur" id="curnext">—</span></div>
+</div>
+<div class="warn" id="warn" style="display:none"></div>
+<div class="legend" id="legendbox"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+var dark = matchMedia('(prefers-color-scheme:dark)').matches;
+
+var fiberPalette = [
+  [0x534AB7, 0xAFA9EC],
+  [0x0F6E56, 0x5DCAA5],
+  [0xD85A30, 0xF0997B],
+  [0x185FA5, 0x85B7EB],
+  [0x993556, 0xED93B1],
+  [0x639922, 0x97C459],
+  [0xBA7517, 0xEF9F27],
+  [0xA32D2D, 0xF09595],
+  [0x5F5E5A, 0xB4B2A9]
+];
+var fiberPaletteHex = [
+  '#534AB7','#0F6E56','#D85A30','#185FA5','#993556','#639922','#BA7517','#A32D2D','#5F5E5A'
+];
+
+function fiberColor(s, m) {
+  var idx = Math.round(s * (fiberPalette.length - 1) / Math.max(m - 1, 1));
+  idx = Math.min(idx, fiberPalette.length - 1);
+  return dark ? fiberPalette[idx][1] : fiberPalette[idx][0];
+}
+function fiberHex(s, m) {
+  var idx = Math.round(s * (fiberPaletteHex.length - 1) / Math.max(m - 1, 1));
+  return fiberPaletteHex[Math.min(idx, fiberPaletteHex.length - 1)];
+}
+
+var normalColor = dark ? 0x85B7EB : 0x185FA5;
+var latestColor = 0x378ADD;
+var wrapColorVal = dark ? 0xF0997B : 0xD85A30;
+var wrapLatestVal = 0xD85A30;
+
+var msel = document.getElementById('msel');
+[3,4,5,6,7,8,9,11].forEach(function(v){
+  var o = document.createElement('option'); o.value = v; o.textContent = v;
+  if (v === 3) o.selected = true;
+  msel.appendChild(o);
+});
+
+var container = document.getElementById('container');
+var scene, camera, renderer, spheres, allSphereList, arrowObjs, cycle;
+var m, currentStep, running, timer;
+var isDragging = false, prevX = 0, prevY = 0, rotX = 0.55, rotY = 0.75;
+
+function mod(a, n) { return ((a % n) + n) % n; }
+
+function getRule(i, j, k) {
+  var s = mod(i + j + k, m);
+  if (s === 0) {
+    if (j === m - 1) return {rule:0, cls:'a-s0', act:'bump i', ni:mod(i+1,m), nj:j, nk:k};
+    return {rule:1, cls:'a-s0', act:'bump k', ni:i, nj:j, nk:mod(k+1,m)};
+  } else if (s === m - 1) {
+    if (i > 0) return {rule:4, cls:'a-sl', act:'bump j', ni:i, nj:mod(j+1,m), nk:k};
+    return {rule:5, cls:'a-sl', act:'bump k', ni:i, nj:j, nk:mod(k+1,m)};
+  } else {
+    if (i === m - 1) return {rule:2, cls:'a-sm', act:'bump k', ni:i, nj:j, nk:mod(k+1,m)};
+    return {rule:3, cls:'a-sm', act:'bump j', ni:i, nj:mod(j+1,m), nk:k};
+  }
+}
+
+function buildCycle() {
+  cycle = [];
+  var ci = 0, cj = 0, ck = 0;
+  var total = m * m * m;
+  for (var t = 0; t < total; t++) {
+    var r = getRule(ci, cj, ck);
+    var s = mod(ci + cj + ck, m);
+    cycle.push({i:ci, j:cj, k:ck, s:s, rule:r.rule, cls:r.cls, act:r.act, ni:r.ni, nj:r.nj, nk:r.nk});
+    ci = r.ni; cj = r.nj; ck = r.nk;
+  }
+}
+
+function vtxLabel(i, j, k) {
+  if (m <= 16) return i.toString(16) + j.toString(16) + k.toString(16);
+  return i + ',' + j + ',' + k;
+}
+
+function buildLegend() {
+  var box = document.getElementById('legendbox');
+  var html = '';
+  var shown = new Set();
+  for (var s = 0; s < m; s++) {
+    var hex = fiberHex(s, m);
+    if (shown.has(hex) && m > 9) continue;
+    shown.add(hex);
+    if (m <= 9) {
+      html += '<span><span class="dot" style="background:' + hex + '"></span>s=' + s + '</span>';
+    } else {
+      html += '<span><span class="dot" style="background:' + hex + '"></span>s=' + s + '</span>';
+    }
+  }
+  html += '<span><span class="line" style="border-color:#D85A30"></span>wrap</span>';
+  box.innerHTML = html;
+}
+
+function checkHamiltonian() {
+  var warn = document.getElementById('warn');
+  var visited = new Set();
+  for (var t = 0; t < cycle.length; t++) {
+    var c = cycle[t];
+    var key = c.i + ',' + c.j + ',' + c.k;
+    visited.add(key);
+  }
+  var total = m * m * m;
+  var last = cycle[cycle.length - 1];
+  var returnsToStart = (last.ni === 0 && last.nj === 0 && last.nk === 0);
+  if (visited.size < total || !returnsToStart) {
+    warn.style.display = 'block';
+    warn.textContent = 'Not Hamiltonian for m=' + m + ': visited ' + visited.size + '/' + total + ' vertices' +
+      (returnsToStart ? '' : ', does not return to 000') +
+      '. The construction requires odd m > 2.';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+var currentSphere;
+
+function initScene() {
+  if (renderer) {
+    container.removeChild(renderer.domElement);
+    renderer.dispose();
+  }
+  scene = new THREE.Scene();
+  var W = container.clientWidth, H = container.clientHeight;
+  camera = new THREE.PerspectiveCamera(38, W / H, 0.1, 500);
+  renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  container.prepend(renderer.domElement);
+
+  var edgeOpa = m <= 5 ? 0.2 : (m <= 7 ? 0.1 : 0.05);
+  var edgeMat = new THREE.LineBasicMaterial({color: dark ? 0x555555 : 0xcccccc, transparent: true, opacity: edgeOpa});
+  for (var a = 0; a < m; a++) for (var b = 0; b < m; b++) for (var dim = 0; dim < 3; dim++) {
+    var pts = [];
+    for (var c = 0; c < m; c++) {
+      var p = [0, 0, 0];
+      if (dim === 0) {p[0]=c; p[1]=a; p[2]=b;}
+      else if (dim === 1) {p[0]=a; p[1]=c; p[2]=b;}
+      else {p[0]=a; p[1]=b; p[2]=c;}
+      pts.push(new THREE.Vector3(p[0], p[1], p[2]));
+    }
+    scene.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), edgeMat));
+  }
+
+  var sphereSize = m <= 5 ? 0.07 : (m <= 7 ? 0.05 : 0.035);
+  spheres = {};
+  allSphereList = [];
+  for (var i = 0; i < m; i++) for (var j = 0; j < m; j++) for (var k = 0; k < m; k++) {
+    var s = mod(i + j + k, m);
+    var mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(sphereSize, 12, 12),
+      new THREE.MeshBasicMaterial({color: fiberColor(s, m), transparent: true, opacity: 0.35})
+    );
+    mesh.position.set(i, j, k);
+    mesh.userData = {i:i, j:j, k:k, s:s, label: vtxLabel(i, j, k)};
+    scene.add(mesh);
+    spheres[i + ',' + j + ',' + k] = mesh;
+    allSphereList.push(mesh);
+  }
+
+  var curSize = m <= 5 ? 0.14 : (m <= 7 ? 0.1 : 0.07);
+  currentSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(curSize, 20, 20),
+    new THREE.MeshBasicMaterial({color: dark ? 0x85B7EB : 0x378ADD, transparent: true, opacity: 0.9})
+  );
+  scene.add(currentSphere);
+
+  arrowObjs = [];
+  updateCamera();
+}
+
+var pivot, camRadius;
+function updateCamera() {
+  var center = (m - 1) / 2;
+  pivot = new THREE.Vector3(center, center, center);
+  camRadius = m * 1.7 + 1;
+  camera.position.set(
+    pivot.x + camRadius * Math.sin(rotY) * Math.cos(rotX),
+    pivot.y + camRadius * Math.sin(rotX),
+    pivot.z + camRadius * Math.cos(rotY) * Math.cos(rotX)
+  );
+  camera.lookAt(pivot);
+}
+
+function isWrap(c) {
+  return (c.ni !== c.i && c.ni < c.i) || (c.nj !== c.j && c.nj < c.j) || (c.nk !== c.k && c.nk < c.k);
+}
+
+function makeCone(pos, dir, col, opa, size) {
+  var s = size || 1;
+  var coneGeo = new THREE.ConeGeometry(0.04 * s, 0.1 * s, 8);
+  var coneMat = new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: opa});
+  var cone = new THREE.Mesh(coneGeo, coneMat);
+  cone.position.copy(pos);
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  scene.add(cone);
+  return {mesh: cone, mat: coneMat};
+}
+
+function makePortalRing(pos, axDir, col, opa) {
+  var s = m <= 5 ? 1 : 0.7;
+  var geo = new THREE.RingGeometry(0.06 * s, 0.09 * s, 16);
+  var mat = new THREE.MeshBasicMaterial({color: col, transparent: true, opacity: opa, side: THREE.DoubleSide});
+  var ring = new THREE.Mesh(geo, mat);
+  ring.position.copy(pos);
+  ring.lookAt(pos.clone().add(axDir));
+  scene.add(ring);
+  return {mesh: ring, mat: mat};
+}
+
+var EXT = 0.55;
+
+function makeArrow(c, isLatest) {
+  var from = new THREE.Vector3(c.i, c.j, c.k);
+  var to = new THREE.Vector3(c.ni, c.nj, c.nk);
+  var parts = [], mats = [];
+  var wrap = isWrap(c);
+  var coneScale = m <= 5 ? 1 : (m <= 7 ? 0.75 : 0.55);
+
+  if (!wrap) {
+    var col = isLatest ? latestColor : normalColor;
+    var opa = isLatest ? 1 : 0.4;
+    var dir = new THREE.Vector3().subVectors(to, from).normalize();
+    var shaftEnd = new THREE.Vector3().lerpVectors(from, to, 0.85);
+    var tipPos = new THREE.Vector3().lerpVectors(from, to, 0.92);
+    var lineMat = new THREE.LineBasicMaterial({color: col, transparent: true, opacity: opa});
+    var line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([from.clone(), shaftEnd]), lineMat);
+    scene.add(line); parts.push(line); mats.push(lineMat);
+    var cn = makeCone(tipPos, dir, col, opa, coneScale);
+    parts.push(cn.mesh); mats.push(cn.mat);
+    return {parts: parts, mats: mats};
+  }
+
+  var col = isLatest ? wrapLatestVal : wrapColorVal;
+  var opa = isLatest ? 1 : 0.45;
+  var diff = new THREE.Vector3(c.ni - c.i, c.nj - c.j, c.nk - c.k);
+  var axisDir = new THREE.Vector3(diff.x !== 0 ? 1 : 0, diff.y !== 0 ? 1 : 0, diff.z !== 0 ? 1 : 0);
+
+  var exitPt = from.clone().addScaledVector(axisDir, EXT);
+  var entryPt = to.clone().addScaledVector(axisDir, -EXT);
+
+  var exitLineMat = new THREE.LineBasicMaterial({color: col, transparent: true, opacity: opa});
+  var exitLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([from.clone(), exitPt]), exitLineMat);
+  scene.add(exitLine); parts.push(exitLine); mats.push(exitLineMat);
+
+  var exitCone = makeCone(from.clone().addScaledVector(axisDir, EXT * 0.85), axisDir, col, opa, coneScale);
+  parts.push(exitCone.mesh); mats.push(exitCone.mat);
+
+  var pr1 = makePortalRing(exitPt, axisDir, col, opa);
+  parts.push(pr1.mesh); mats.push(pr1.mat);
+
+  var entryLineMat = new THREE.LineBasicMaterial({color: col, transparent: true, opacity: opa});
+  var entryLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([entryPt, to.clone()]), entryLineMat);
+  scene.add(entryLine); parts.push(entryLine); mats.push(entryLineMat);
+
+  var entryCone = makeCone(entryPt.clone().addScaledVector(axisDir, EXT * 0.6), axisDir, col, opa, coneScale);
+  parts.push(entryCone.mesh); mats.push(entryCone.mat);
+
+  var pr2 = makePortalRing(entryPt, axisDir, col, opa);
+  parts.push(pr2.mesh); mats.push(pr2.mat);
+
+  var dashPts = [];
+  var segs = 12;
+  var bow = axisDir.clone().cross(new THREE.Vector3(0.3, 0.5, 0.2)).normalize().multiplyScalar(0.6);
+  for (var idx = 0; idx <= segs; idx++) {
+    var t = idx / segs;
+    var p = new THREE.Vector3().lerpVectors(exitPt, entryPt, t).addScaledVector(bow, Math.sin(t * Math.PI) * 0.8);
+    dashPts.push(p);
+  }
+  var dashMat = new THREE.LineDashedMaterial({color: col, transparent: true, opacity: opa * 0.6, dashSize: 0.08, gapSize: 0.06});
+  var dashGeo = new THREE.BufferGeometry().setFromPoints(dashPts);
+  var dashLine = new THREE.Line(dashGeo, dashMat);
+  dashLine.computeLineDistances();
+  scene.add(dashLine); parts.push(dashLine); mats.push(dashMat);
+
+  return {parts: parts, mats: mats};
+}
+
+function dimPrevious() {
+  for (var a = 0; a < arrowObjs.length; a++) {
+    for (var j = 0; j < arrowObjs[a].mats.length; j++) {
+      arrowObjs[a].mats[j].opacity = Math.min(arrowObjs[a].mats[j].opacity, 0.2);
+    }
+  }
+}
+
+function clearRules() {
+  for (var i = 0; i < 6; i++) {
+    var el = document.getElementById('r' + i);
+    el.classList.remove('a-s0', 'a-sm', 'a-sl');
+  }
+}
+
+function highlightVisited() {
+  var baseScale = m <= 5 ? 1 : (m <= 7 ? 0.8 : 0.6);
+  for (var key in spheres) { spheres[key].material.opacity = 0.15; spheres[key].scale.set(baseScale, baseScale, baseScale); }
+  for (var t = 0; t <= currentStep && t < cycle.length; t++) {
+    var c = cycle[t];
+    var sp = spheres[c.i + ',' + c.j + ',' + c.k];
+    if (sp) { sp.material.opacity = 0.7; sp.scale.set(baseScale * 1.3, baseScale * 1.3, baseScale * 1.3); }
+  }
+  var cur = cycle[currentStep % cycle.length];
+  var spCur = spheres[cur.i + ',' + cur.j + ',' + cur.k];
+  if (spCur) { spCur.material.opacity = 1; spCur.scale.set(baseScale * 1.8, baseScale * 1.8, baseScale * 1.8); }
+}
+
+function renderStep() {
+  var total = m * m * m;
+  var c = cycle[currentStep % total];
+  currentSphere.position.set(c.i, c.j, c.k);
+  document.getElementById('curv').textContent = vtxLabel(c.i, c.j, c.k);
+  document.getElementById('curs').textContent = c.s;
+  document.getElementById('curnext').textContent = c.act + ' \u2192 ' + vtxLabel(c.ni, c.nj, c.nk);
+  document.getElementById('stepcount').textContent = currentStep + ' / ' + total;
+  clearRules();
+  document.getElementById('r' + c.rule).classList.add(c.cls);
+  highlightVisited();
+}
+
+function doStep() {
+  var total = m * m * m;
+  if (currentStep >= total) return false;
+  var c = cycle[currentStep];
+  dimPrevious();
+  arrowObjs.push(makeArrow(c, true));
+  currentStep++;
+  renderStep();
+  return currentStep < total;
+}
+
+function stopRun() {
+  running = false;
+  document.getElementById('runbtn').textContent = 'Auto-run';
+  if (timer) clearTimeout(timer);
+  timer = null;
+}
+
+function resetAll() {
+  stopRun();
+  m = parseInt(msel.value);
+  buildCycle();
+  checkHamiltonian();
+  buildLegend();
+  initScene();
+  currentStep = 0;
+  renderStep();
+}
+
+function startRun() {
+  if (running) return;
+  running = true;
+  document.getElementById('runbtn').textContent = 'Pause';
+  (function tick() {
+    if (!running) return;
+    if (!doStep()) { stopRun(); return; }
+    var delay = m <= 5 ? (700 - document.getElementById('speed').value * 60) :
+                m <= 7 ? (300 - document.getElementById('speed').value * 25) :
+                         (100 - document.getElementById('speed').value * 8);
+    timer = setTimeout(tick, Math.max(delay, 10));
+  })();
+}
+
+document.getElementById('stepbtn').onclick = function() { stopRun(); doStep(); };
+document.getElementById('runbtn').onclick = function() { if (running) stopRun(); else startRun(); };
+document.getElementById('resetbtn').onclick = resetAll;
+msel.onchange = resetAll;
+
+container.addEventListener('pointerdown', function(e) {
+  isDragging = true; prevX = e.clientX; prevY = e.clientY;
+  container.setPointerCapture(e.pointerId);
+});
+container.addEventListener('pointermove', function(e) {
+  if (!isDragging) {
+    var rect = renderer.domElement.getBoundingClientRect();
+    var mouse = new THREE.Vector2(
+      ((e.clientX - rect.left) / rect.width) * 2 - 1,
+      -((e.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    var raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+    var hits = raycaster.intersectObjects(allSphereList);
+    var tooltip = document.getElementById('tooltip');
+    if (hits.length > 0) {
+      var d = hits[0].object.userData;
+      tooltip.textContent = d.label + ' (s=' + d.s + ')';
+      var p = hits[0].object.position.clone().project(camera);
+      tooltip.style.left = (p.x * 0.5 + 0.5) * rect.width + 'px';
+      tooltip.style.top = (-p.y * 0.5 + 0.5) * rect.height + 'px';
+      tooltip.classList.add('show');
+    } else {
+      tooltip.classList.remove('show');
+    }
+    return;
+  }
+  rotY += (e.clientX - prevX) * 0.008;
+  rotX = Math.max(-1.2, Math.min(1.2, rotX + (e.clientY - prevY) * 0.008));
+  prevX = e.clientX; prevY = e.clientY;
+  updateCamera();
+});
+container.addEventListener('pointerup', function() { isDragging = false; });
+
+window.addEventListener('resize', function() {
+  var w = container.clientWidth, h = container.clientHeight;
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+
+function animate() {
+  requestAnimationFrame(animate);
+  if (!isDragging && currentStep === 0) { rotY += 0.003; updateCamera(); }
+  if (renderer && scene && camera) renderer.render(scene, camera);
+}
+
+resetAll();
+animate();
+</script>
+</body>
+</html>
